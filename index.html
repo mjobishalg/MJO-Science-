@@ -568,6 +568,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a2e;font-family:
 .col-dot.on{border-color:var(--text);transform:scale(1.12);}
 .form-lbl{font-size:.62rem;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;display:block;}
 </style>
+<link rel="manifest" id="pwaManifest"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-touch-fullscreen" content="yes"/>
+<link rel="apple-touch-icon" id="pwaIcon"/>
 </head>
 <body>
 <div id="root">
@@ -1352,6 +1356,47 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a2e;font-family:
   <div class="vwr-body" id="vBody"></div>
 </div>
 
+<!-- STUDENT CONTENT SCREENS -->
+<div id="scStudentContent" class="screen off" style="background:var(--bg);">
+  <div class="hdr">
+    <button class="hdr-btn" id="stuBackBtn" onclick="stuNavBack()">←</button>
+    <div class="hdr-l" style="margin-left:4px;">
+      <div class="hdr-t" id="stuPageTitle">Subject<small id="stuPageSub">Sections</small></div>
+    </div>
+    <div class="hdr-r">
+      <img class="hdr-logo" src="" id="stuHdrLogo" style="width:34px;height:34px;border-radius:9px;overflow:hidden;border:2px solid rgba(255,255,255,.2);background:#fff;"/>
+    </div>
+  </div>
+  <div class="fr"></div>
+  <div class="bc" id="stuBc"></div>
+  <div style="flex:1;overflow-y:auto;padding:8px 11px 84px;" id="stuListWrap">
+    <div style="display:flex;flex-direction:column;gap:8px;" id="stuList"></div>
+  </div>
+  <!-- Chapter content panel -->
+  <div id="stuChapPanel" style="display:none;flex:1;overflow-y:auto;padding:0 0 84px;">
+    <div style="background:var(--card);border-radius:var(--radius);margin:8px 11px 0;box-shadow:var(--shadow);overflow:hidden;" id="stuVideosWrap">
+      <div style="padding:10px 13px;background:var(--bg);display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--text);border-bottom:1px solid #f0ece7;"><i class="fa-solid fa-video" style="color:var(--red);"></i> Videos</div>
+      <div id="stuVideosList"></div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius);margin:8px 11px 0;box-shadow:var(--shadow);overflow:hidden;" id="stuPdfsWrap">
+      <div style="padding:10px 13px;background:var(--bg);display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--text);border-bottom:1px solid #f0ece7;"><i class="fa-solid fa-file-pdf" style="color:var(--blue);"></i> PDFs / Notes</div>
+      <div id="stuPdfsList"></div>
+    </div>
+    <div style="background:var(--card);border-radius:var(--radius);margin:8px 11px 0;box-shadow:var(--shadow);overflow:hidden;" id="stuLinksWrap">
+      <div style="padding:10px 13px;background:var(--bg);display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:800;color:var(--text);border-bottom:1px solid #f0ece7;"><i class="fa-solid fa-link" style="color:var(--green);"></i> Links</div>
+      <div id="stuLinksList"></div>
+    </div>
+    <div style="height:10px;"></div>
+  </div>
+  <nav class="bnav">
+    <button class="nv" onclick="goTo('scDash');showTab('courses')"><span class="ni">←</span><span class="nl">Back</span></button>
+    <button class="nv" onclick="showTab('home');goTo('scDash')"><span class="ni"><i class="fa-solid fa-house"></i></span><span class="nl">Home</span></button>
+    <button class="nv-center" onclick="startMock()"><i class="fa-solid fa-pen-to-square"></i></button>
+    <button class="nv" onclick="goTo('scChat')"><span class="ni"><i class="fa-solid fa-comments"></i></span><span class="nl">Chat</span></button>
+    <button class="nv" onclick="goTo('scPayment');showPayView('plansView')"><span class="ni"><i class="fa-solid fa-credit-card"></i></span><span class="nl">Plans</span></button>
+  </nav>
+</div>
+
 <!-- AVATAR UPLOAD INPUT -->
 <input type="file" id="avatarInput" accept="image/*" style="display:none;" onchange="handleAvatarUpload(event)"/>
 
@@ -1799,6 +1844,193 @@ function switchQ(i){
 }
 setInterval(()=>switchQ((qi+1)%3),5000);
 
+// ===== STUDENT CONTENT BROWSER =====
+let stuLevel='CEE', stuSubName='', stuSubId=null;
+let stuSecName='', stuSecId=null;
+let stuUnitName='', stuUnitId=null;
+let stuView='sections'; // sections / units / chapters / content
+
+function openStudentSubject(subName, lv){
+  // Find subject id in content manager data
+  stuLevel = lv || courseLvl;
+  stuSubName = subName;
+  stuView = 'sections';
+  const d = loadD();
+  // Find subject by name
+  const subjs = d[stuLevel]||{};
+  stuSubId = Object.keys(subjs).find(k => subjs[k].name === subName) || null;
+  goTo('scStudentContent');
+  // Set header logo
+  const hl = document.getElementById('stuHdrLogo');
+  if(hl) hl.src = LOGO;
+  stuRenderSections();
+}
+
+function stuBc(items){
+  const el = document.getElementById('stuBc');
+  if(!el) return;
+  el.innerHTML = items.map((it,i)=>`
+    <span style="font-size:.66rem;font-weight:${i===items.length-1?'800':'700'};color:${i===items.length-1?'var(--blue)':'var(--muted)'};cursor:pointer;white-space:nowrap;flex-shrink:0;" onclick="${it.fn||''}">${it.lbl}</span>
+    ${i<items.length-1?'<span style="color:#ccc;font-size:.6rem;flex-shrink:0;"> › </span>':''}
+  `).join('');
+}
+
+function stuRenderSections(){
+  stuView = 'sections';
+  document.getElementById('stuPageTitle').textContent = stuSubName;
+  setT('stuPageSub', 'Sections');
+  document.getElementById('stuListWrap').style.display = 'block';
+  document.getElementById('stuChapPanel').style.display = 'none';
+  stuBc([{lbl:stuLevel, fn:"goTo('scDash');showTab('courses')"}, {lbl:stuSubName}]);
+
+  const d = loadD();
+  if(!stuSubId || !d[stuLevel][stuSubId]){
+    stuShowEmpty('No content added yet for this subject. Check back later!');
+    return;
+  }
+  const secs = d[stuLevel][stuSubId].sections||{};
+  const keys = Object.keys(secs);
+  if(!keys.length){ stuShowEmpty('No sections added yet. Check back later!'); return; }
+
+  document.getElementById('stuList').innerHTML = keys.map(secId=>{
+    const sec = secs[secId];
+    const uc = Object.keys(sec.units||{}).length;
+    return `<div class="subj-item fi" style="cursor:pointer;border-left-color:var(--blue);" onclick="stuOpenSection('${secId}')">
+      <div class="si-ico" style="background:#e8f4fd;">📂</div>
+      <div style="flex:1;"><div class="si-name">${sec.name}</div><div class="si-meta">${uc} Unit${uc!==1?'s':''}</div></div>
+      <i class="fa-solid fa-chevron-right" style="font-size:11px;color:var(--muted);"></i>
+    </div>`;
+  }).join('');
+}
+
+function stuOpenSection(secId){
+  stuView = 'units'; stuSecId = secId;
+  const d = loadD();
+  const sec = d[stuLevel][stuSubId].sections[secId];
+  stuSecName = sec.name;
+  document.getElementById('stuPageTitle').textContent = sec.name;
+  setT('stuPageSub', 'Units');
+  stuBc([
+    {lbl:stuSubName, fn:"stuRenderSections()"},
+    {lbl:sec.name}
+  ]);
+  const units = sec.units||{}, keys = Object.keys(units);
+  if(!keys.length){ stuShowEmpty('No units yet.'); return; }
+  document.getElementById('stuList').innerHTML = keys.map(uid=>{
+    const u = units[uid];
+    const cc = Object.keys(u.chapters||{}).length;
+    return `<div class="subj-item fi" style="cursor:pointer;border-left-color:var(--orange);" onclick="stuOpenUnit('${uid}')">
+      <div class="si-ico" style="background:#fff8e1;">📋</div>
+      <div style="flex:1;"><div class="si-name">${u.name}</div><div class="si-meta">${cc} Chapter${cc!==1?'s':''}</div></div>
+      <i class="fa-solid fa-chevron-right" style="font-size:11px;color:var(--muted);"></i>
+    </div>`;
+  }).join('');
+}
+
+function stuOpenUnit(unitId){
+  stuView = 'chapters'; stuUnitId = unitId;
+  const d = loadD();
+  const u = d[stuLevel][stuSubId].sections[stuSecId].units[unitId];
+  stuUnitName = u.name;
+  document.getElementById('stuPageTitle').textContent = u.name;
+  setT('stuPageSub', 'Chapters');
+  stuBc([
+    {lbl:stuSubName, fn:"stuRenderSections()"},
+    {lbl:stuSecName, fn:"stuOpenSection('"+stuSecId+"')"},
+    {lbl:u.name}
+  ]);
+  const chaps = u.chapters||{}, keys = Object.keys(chaps);
+  if(!keys.length){ stuShowEmpty('No chapters yet.'); return; }
+  document.getElementById('stuList').innerHTML = keys.map(chId=>{
+    const ch = chaps[chId];
+    const vc=(ch.videos||[]).length, pc=(ch.pdfs||[]).length, lc=(ch.links||[]).length;
+    const total = vc+pc+lc;
+    return `<div class="subj-item fi" style="cursor:pointer;border-left-color:var(--purple);" onclick="stuOpenChapter('${chId}')">
+      <div class="si-ico" style="background:#f3e8ff;">📖</div>
+      <div style="flex:1;">
+        <div class="si-name">${ch.name}</div>
+        <div class="si-meta">${vc>0?vc+' Video'+' ':''}${pc>0?pc+' PDF ':' '}${lc>0?lc+' Link':''}${total===0?'No content yet':''}</div>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;">
+        ${vc>0?'<span style="background:#fde8ea;color:var(--red);font-size:.56rem;font-weight:700;padding:2px 6px;border-radius:99px;">'+vc+'V</span>':''}
+        ${pc>0?'<span style="background:#e8f4fd;color:var(--blue);font-size:.56rem;font-weight:700;padding:2px 6px;border-radius:99px;">'+pc+'P</span>':''}
+        <i class="fa-solid fa-chevron-right" style="font-size:11px;color:var(--muted);"></i>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function stuOpenChapter(chId){
+  stuView = 'content';
+  const d = loadD();
+  const ch = d[stuLevel][stuSubId].sections[stuSecId].units[stuUnitId].chapters[chId];
+  document.getElementById('stuPageTitle').textContent = ch.name;
+  setT('stuPageSub', 'Content');
+  stuBc([
+    {lbl:stuSecName, fn:"stuOpenSection('"+stuSecId+"')"},
+    {lbl:stuUnitName, fn:"stuOpenUnit('"+stuUnitId+"')"},
+    {lbl:ch.name}
+  ]);
+  document.getElementById('stuListWrap').style.display = 'none';
+  document.getElementById('stuChapPanel').style.display = 'block';
+
+  // Videos
+  const vl = document.getElementById('stuVideosList');
+  if(!ch.videos||!ch.videos.length){
+    vl.innerHTML = '<div style="padding:13px 15px;font-size:.74rem;color:var(--muted);text-align:center;">No videos yet</div>';
+  } else {
+    vl.innerHTML = ch.videos.map((v,i)=>`
+      <div class="ci-row" onclick="openViewer('video','${encodeURIComponent(v.name)}','${encodeURIComponent(v.src||'')}','${v.type||''}')">
+        <div class="ci-ico" style="background:#fde8ea;"><i class="fa-solid fa-video" style="color:var(--red);font-size:13px;"></i></div>
+        <div style="flex:1;min-width:0;"><div class="ci-nm">${v.name}</div><div class="ci-meta">${v.duration||'Video Lecture'}</div></div>
+        <button class="ci-play"><i class="fa-solid fa-play"></i></button>
+      </div>`).join('');
+  }
+  // PDFs
+  const pl = document.getElementById('stuPdfsList');
+  if(!ch.pdfs||!ch.pdfs.length){
+    pl.innerHTML = '<div style="padding:13px 15px;font-size:.74rem;color:var(--muted);text-align:center;">No PDFs yet</div>';
+  } else {
+    pl.innerHTML = ch.pdfs.map((p,i)=>`
+      <div class="ci-row" onclick="openViewer('pdf','${encodeURIComponent(p.name)}','${encodeURIComponent(p.src||'')}','${p.type||''}')">
+        <div class="ci-ico" style="background:#e8f4fd;"><i class="fa-solid fa-file-pdf" style="color:var(--blue);font-size:13px;"></i></div>
+        <div style="flex:1;min-width:0;"><div class="ci-nm">${p.name}</div><div class="ci-meta">PDF Notes</div></div>
+        <button class="ci-open"><i class="fa-solid fa-eye"></i></button>
+      </div>`).join('');
+  }
+  // Links
+  const ll = document.getElementById('stuLinksList');
+  if(!ch.links||!ch.links.length){
+    ll.innerHTML = '<div style="padding:13px 15px;font-size:.74rem;color:var(--muted);text-align:center;">No links yet</div>';
+  } else {
+    ll.innerHTML = ch.links.map((lk,i)=>`
+      <div class="ci-row" onclick="openViewer('link','${encodeURIComponent(lk.name)}','${encodeURIComponent(lk.url||'')}','link')">
+        <div class="ci-ico" style="background:#e8f5e9;"><i class="fa-solid fa-link" style="color:var(--green);font-size:13px;"></i></div>
+        <div style="flex:1;min-width:0;"><div class="ci-nm">${lk.name}</div><div class="ci-meta">${lk.platform||'External Link'}</div></div>
+        <button class="ci-open"><i class="fa-solid fa-external-link-alt"></i></button>
+      </div>`).join('');
+  }
+}
+
+function stuShowEmpty(msg){
+  document.getElementById('stuList').innerHTML = `
+    <div style="text-align:center;padding:40px 20px;">
+      <div style="font-size:36px;margin-bottom:10px;">📚</div>
+      <div style="font-size:.86rem;font-weight:800;color:var(--text);">${msg}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:6px;">Admin le content add garema yahaa dekhauxa!</div>
+    </div>`;
+}
+
+function stuNavBack(){
+  if(stuView==='content'){
+    document.getElementById('stuChapPanel').style.display='none';
+    document.getElementById('stuListWrap').style.display='block';
+    stuOpenUnit(stuUnitId);
+  } else if(stuView==='chapters'){ stuOpenSection(stuSecId); }
+  else if(stuView==='units'){ stuRenderSections(); }
+  else { goTo('scDash'); showTab('courses'); }
+}
+
 // ===== COURSE SUBJECTS =====
 let courseLvl='CEE';
 const SUBJ_DATA={
@@ -1843,12 +2075,13 @@ function filterCourse(name,el){
 function renderSubjList(lv, filter){
   const list=document.getElementById('subjList');
   const data=SUBJ_DATA[lv].filter(s=>filter==='All'||s.name===filter);
+  const st = getStats();
   list.innerHTML=data.map(s=>`
-    <div class="subj-item fi" style="border-left-color:${s.color};">
+    <div class="subj-item fi" style="border-left-color:${s.color};cursor:pointer;" onclick="openStudentSubject('${s.name}','${lv}')">
       <div class="si-ico" style="background:${s.bg};">${s.icon}</div>
       <div style="flex:1;">
         <div class="si-name">${s.name}</div>
-        <div class="si-meta">${s.units} Units • AI Tests Available</div>
+        <div class="si-meta">${s.units} Units • Tap to open chapters</div>
         <div class="si-prog"><div class="si-fill" style="width:${s.pct}%;background:${s.color};"></div></div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
@@ -2585,9 +2818,23 @@ function openContentModal(type){
 
 function handleFile(e){
   const f=e.target.files[0]; if(!f) return;
-  const fn=document.getElementById('mFn'); if(fn) fn.textContent=f.name;
+  if(f.size > 50*1024*1024){ toast('❌ File too large! Max 50MB'); return; }
+  const fn=document.getElementById('mFn');
+  if(fn) fn.textContent='⏳ Loading: ' + f.name;
+  const okBtn = document.getElementById('mOkBtn');
+  if(okBtn){ okBtn.disabled=true; okBtn.style.opacity='0.5'; okBtn.textContent='Loading...'; }
+  adPendingData = null;
   const r=new FileReader();
-  r.onload=ev=>{ adPendingData=ev.target.result; };
+  r.onload=ev=>{
+    adPendingData=ev.target.result;
+    if(fn) fn.innerHTML='✅ ' + f.name;
+    if(okBtn){ okBtn.disabled=false; okBtn.style.opacity='1'; okBtn.textContent='Save ✓'; }
+  };
+  r.onerror=()=>{
+    toast('❌ File read failed!');
+    if(fn) fn.textContent='❌ Failed - try again';
+    if(okBtn){ okBtn.disabled=false; okBtn.style.opacity='1'; okBtn.textContent='Save ✓'; }
+  };
   r.readAsDataURL(f);
 }
 
@@ -2747,6 +2994,10 @@ window.addEventListener('popstate',(e)=>{
   const testScreen = document.getElementById('scTest');
   if(testScreen && !testScreen.classList.contains('off')){ showConfirmSubmit(); history.pushState(null,'',location.href); return; }
 
+  // 5b. Student content browser back
+  const stuContent = document.getElementById('scStudentContent');
+  if(stuContent && !stuContent.classList.contains('off')){ stuNavBack(); history.pushState(null,'',location.href); return; }
+
   // 6. Result screen - go to dashboard
   const resultScreen = document.getElementById('scResult');
   if(resultScreen && !resultScreen.classList.contains('off')){ goTo('scDash'); history.pushState(null,'',location.href); return; }
@@ -2784,8 +3035,39 @@ window.addEventListener('popstate',(e)=>{
 });
 history.pushState(null,'',location.href);
 
+// ===== PWA SETUP =====
+function setupPWA(){
+  // Create manifest dynamically with logo
+  const manifest = {
+    name: 'MJO Science',
+    short_name: 'MJO Science',
+    description: "Nepal's Premier Entrance Prep",
+    start_url: window.location.href,
+    display: 'standalone',
+    orientation: 'portrait',
+    theme_color: '#002570',
+    background_color: '#002570',
+    icons: [
+      { src: LOGO, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: LOGO, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  document.getElementById('pwaManifest').href = url;
+  // Apple touch icon
+  const icon = document.getElementById('pwaIcon');
+  if(icon) icon.href = LOGO;
+  // Install prompt
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    window._installPrompt = e;
+  });
+}
+
 // ===== INIT =====
 seedData();
+setupPWA();
 
 </script>
 </body>
